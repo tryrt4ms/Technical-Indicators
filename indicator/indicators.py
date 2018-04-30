@@ -1,4 +1,4 @@
-#!python
+
 """
 Project: Technical Indicators
 Package: indicator
@@ -43,20 +43,20 @@ Usage :
     MACD(df)
 """
 
-def HA(df, ohlc=['Open', 'High', 'Low', 'Close']):
+def HA(df, ohlc=['open', 'high', 'low', 'close']):
     """
     Function to compute Heiken Ashi Candles (HA)
     
     Args :
         df : Pandas DataFrame which contains ['date', 'open', 'high', 'low', 'close', 'volume'] columns
-        ohlc: List defining OHLC Column names (default ['Open', 'High', 'Low', 'Close'])
+        ohlc: List defining OHLC Column names (default ['open', 'high', 'low', 'close'])
         
     Returns :
         df : Pandas DataFrame with new columns added for 
-            Heiken Ashi Close (HA_$ohlc[3])
-            Heiken Ashi Open (HA_$ohlc[0])
-            Heiken Ashi High (HA_$ohlc[1])
-            Heiken Ashi Low (HA_$ohlc[2])
+            Heiken Ashi close (HA_$ohlc[3])
+            Heiken Ashi open (HA_$ohlc[0])
+            Heiken Ashi high (HA_$ohlc[1])
+            Heiken Ashi low (HA_$ohlc[2])
     """
 
     ha_open = 'HA_' + ohlc[0]
@@ -77,6 +77,7 @@ def HA(df, ohlc=['Open', 'High', 'Low', 'Close']):
     df[ha_low]=df[[ha_open, ha_close, ohlc[2]]].min(axis=1)
 
     return df
+
 
 def SMA(df, base, target, period):
     """
@@ -116,7 +117,37 @@ def STDDEV(df, base, target, period):
 
     return df
 
-def EMA(df, base, target, period, alpha=False):
+def TRYEMA(df,colFrom,colTo,test_period,alpha):
+    ignore=0
+
+    #colTo = 'ema_' + str(test_period)
+    coef = 2 / (test_period + 1)
+    periodTotal = 0
+    colTest = colTo+'_test'
+    #df.reset_index(inplace=True)
+    for i in range(0, len(df)):
+        if (i < ignore):
+            df.set_value(i, colTest, 0.00)
+        elif (i < ignore + test_period - 1):
+            periodTotal += df.get_value(i, colFrom)
+            df.set_value(i, colTest, 0.00)
+        elif (i < ignore + test_period):
+            periodTotal += df.get_value(i, colFrom)
+            df.set_value(i, colTest, (periodTotal / test_period))
+        else:
+            if (alpha == True):
+                df.set_value(i, colTest, (((df.get_value(i - 1, colTest) * (test_period - 1)) + df.get_value(i,
+                                                                                                             colFrom)) / test_period))
+            else:
+                df.set_value(i, colTest, (
+                            ((df.get_value(i, colFrom) - df.get_value(i - 1, colTest)) * coef) + df.get_value(i - 1,
+                                                                                                              colTest)))
+
+    #df.set_index('Date', inplace=True)
+    return df
+
+
+def EMA(df, base, target, period, alpha):
     """
     Function to compute Exponential Moving Average (EMA)
     
@@ -135,7 +166,8 @@ def EMA(df, base, target, period, alpha=False):
     
     if (alpha == True):
         # (1 - alpha) * previous_val + alpha * current_val where alpha = 1 / period
-        df[target] = con.ewm(alpha=1 / period, adjust=False).mean()
+        alpha = 1.0 / period
+        df[target] = con.ewm(alpha=alpha, adjust=False).mean()
     else:
         # ((current_val - previous_val) * coeff) + previous_val where coeff = 2 / (period + 1)
         df[target] = con.ewm(span=period, adjust=False).mean()
@@ -143,14 +175,14 @@ def EMA(df, base, target, period, alpha=False):
     df[target].fillna(0, inplace=True)
     return df
 
-def ATR(df, period, ohlc=['Open', 'High', 'Low', 'Close']):
+def ATR(df, period, ohlc=['open', 'high', 'low', 'close']):
     """
     Function to compute Average True Range (ATR)
     
     Args :
         df : Pandas DataFrame which contains ['date', 'open', 'high', 'low', 'close', 'volume'] columns
         period : Integer indicates the period of computation in terms of number of candles
-        ohlc: List defining OHLC Column names (default ['Open', 'High', 'Low', 'Close'])
+        ohlc: List defining OHLC Column names (default ['open', 'high', 'low', 'close'])
         
     Returns :
         df : Pandas DataFrame with new columns added for 
@@ -171,10 +203,10 @@ def ATR(df, period, ohlc=['Open', 'High', 'Low', 'Close']):
 
     # Compute EMA of true range using ATR formula after ignoring first row
     EMA(df, 'TR', atr, period, alpha=True)
-    
+    #MEMA(df, 'TR', atr+'_New', period, alpha=True)
     return df
 
-def SuperTrend(df, period, multiplier, ohlc=['Open', 'High', 'Low', 'Close']):
+def SuperTrend(df, period, multiplier, ohlc=['open', 'high', 'low', 'close']):
     """
     Function to compute SuperTrend
     
@@ -182,7 +214,7 @@ def SuperTrend(df, period, multiplier, ohlc=['Open', 'High', 'Low', 'Close']):
         df : Pandas DataFrame which contains ['date', 'open', 'high', 'low', 'close', 'volume'] columns
         period : Integer indicates the period of computation in terms of number of candles
         multiplier : Integer indicates value to multiply the ATR
-        ohlc: List defining OHLC Column names (default ['Open', 'High', 'Low', 'Close'])
+        ohlc: List defining OHLC Column names (default ['open', 'high', 'low', 'close'])
         
     Returns :
         df : Pandas DataFrame with new columns added for 
@@ -202,21 +234,21 @@ def SuperTrend(df, period, multiplier, ohlc=['Open', 'High', 'Low', 'Close']):
         BASIC UPPERBAND = (HIGH + LOW) / 2 + Multiplier * ATR
         BASIC LOWERBAND = (HIGH + LOW) / 2 - Multiplier * ATR
         
-        FINAL UPPERBAND = IF( (Current BASICUPPERBAND < Previous FINAL UPPERBAND) or (Previous Close > Previous FINAL UPPERBAND))
+        FINAL UPPERBAND = IF( (Current BASICUPPERBAND < Previous FINAL UPPERBAND) or (Previous close > Previous FINAL UPPERBAND))
                             THEN (Current BASIC UPPERBAND) ELSE Previous FINALUPPERBAND)
-        FINAL LOWERBAND = IF( (Current BASIC LOWERBAND > Previous FINAL LOWERBAND) or (Previous Close < Previous FINAL LOWERBAND)) 
+        FINAL LOWERBAND = IF( (Current BASIC LOWERBAND > Previous FINAL LOWERBAND) or (Previous close < Previous FINAL LOWERBAND)) 
                             THEN (Current BASIC LOWERBAND) ELSE Previous FINAL LOWERBAND)
         
-        SUPERTREND = IF((Previous SUPERTREND = Previous FINAL UPPERBAND) and (Current Close <= Current FINAL UPPERBAND)) THEN
+        SUPERTREND = IF((Previous SUPERTREND = Previous FINAL UPPERBAND) and (Current close <= Current FINAL UPPERBAND)) THEN
                         Current FINAL UPPERBAND
                     ELSE
-                        IF((Previous SUPERTREND = Previous FINAL UPPERBAND) and (Current Close > Current FINAL UPPERBAND)) THEN
+                        IF((Previous SUPERTREND = Previous FINAL UPPERBAND) and (Current close > Current FINAL UPPERBAND)) THEN
                             Current FINAL LOWERBAND
                         ELSE
-                            IF((Previous SUPERTREND = Previous FINAL LOWERBAND) and (Current Close >= Current FINAL LOWERBAND)) THEN
+                            IF((Previous SUPERTREND = Previous FINAL LOWERBAND) and (Current close >= Current FINAL LOWERBAND)) THEN
                                 Current FINAL LOWERBAND
                             ELSE
-                                IF((Previous SUPERTREND = Previous FINAL LOWERBAND) and (Current Close < Current FINAL LOWERBAND)) THEN
+                                IF((Previous SUPERTREND = Previous FINAL LOWERBAND) and (Current close < Current FINAL LOWERBAND)) THEN
                                     Current FINAL UPPERBAND
     """
     
@@ -228,16 +260,16 @@ def SuperTrend(df, period, multiplier, ohlc=['Open', 'High', 'Low', 'Close']):
     df['final_ub'] = 0.00
     df['final_lb'] = 0.00
     for i in range(period, len(df)):
-        df['final_ub'].iat[i] = df['basic_ub'].iat[i] if df['basic_ub'].iat[i] < df['final_ub'].iat[i - 1] or df['Close'].iat[i - 1] > df['final_ub'].iat[i - 1] else df['final_ub'].iat[i - 1]
-        df['final_lb'].iat[i] = df['basic_lb'].iat[i] if df['basic_lb'].iat[i] > df['final_lb'].iat[i - 1] or df['Close'].iat[i - 1] < df['final_lb'].iat[i - 1] else df['final_lb'].iat[i - 1]
+        df['final_ub'].iat[i] = df['basic_ub'].iat[i] if df['basic_ub'].iat[i] < df['final_ub'].iat[i - 1] or df['close'].iat[i - 1] > df['final_ub'].iat[i - 1] else df['final_ub'].iat[i - 1]
+        df['final_lb'].iat[i] = df['basic_lb'].iat[i] if df['basic_lb'].iat[i] > df['final_lb'].iat[i - 1] or df['close'].iat[i - 1] < df['final_lb'].iat[i - 1] else df['final_lb'].iat[i - 1]
        
     # Set the Supertrend value
     df[st] = 0.00
     for i in range(period, len(df)):
-        df[st].iat[i] = df['final_ub'].iat[i] if df[st].iat[i - 1] == df['final_ub'].iat[i - 1] and df['Close'].iat[i] <= df['final_ub'].iat[i] else \
-                        df['final_lb'].iat[i] if df[st].iat[i - 1] == df['final_ub'].iat[i - 1] and df['Close'].iat[i] >  df['final_ub'].iat[i] else \
-                        df['final_lb'].iat[i] if df[st].iat[i - 1] == df['final_lb'].iat[i - 1] and df['Close'].iat[i] >= df['final_lb'].iat[i] else \
-                        df['final_ub'].iat[i] if df[st].iat[i - 1] == df['final_lb'].iat[i - 1] and df['Close'].iat[i] <  df['final_lb'].iat[i] else 0.00 
+        df[st].iat[i] = df['final_ub'].iat[i] if df[st].iat[i - 1] == df['final_ub'].iat[i - 1] and df['close'].iat[i] <= df['final_ub'].iat[i] else \
+                        df['final_lb'].iat[i] if df[st].iat[i - 1] == df['final_ub'].iat[i - 1] and df['close'].iat[i] >  df['final_ub'].iat[i] else \
+                        df['final_lb'].iat[i] if df[st].iat[i - 1] == df['final_lb'].iat[i - 1] and df['close'].iat[i] >= df['final_lb'].iat[i] else \
+                        df['final_ub'].iat[i] if df[st].iat[i - 1] == df['final_lb'].iat[i - 1] and df['close'].iat[i] <  df['final_lb'].iat[i] else 0.00 
                  
     # Mark the trend direction up/down
     df[stx] = np.where((df[st] > 0.00), np.where((df[ohlc[3]] < df[st]), 'down',  'up'), np.NaN)
@@ -249,7 +281,7 @@ def SuperTrend(df, period, multiplier, ohlc=['Open', 'High', 'Low', 'Close']):
 
     return df
 
-def MACD(df, fastEMA=12, slowEMA=26, signal=9, base='Close'):
+def MACD(df, fastEMA=12, slowEMA=26, signal=9, base='close'):
     """
     Function to compute Moving Average Convergence Divergence (MACD)
     
@@ -258,7 +290,7 @@ def MACD(df, fastEMA=12, slowEMA=26, signal=9, base='Close'):
         fastEMA : Integer indicates faster EMA
         slowEMA : Integer indicates slower EMA
         signal : Integer indicates the signal generator for MACD
-        base : String indicating the column name from which the MACD needs to be computed from (Default Close)
+        base : String indicating the column name from which the MACD needs to be computed from (Default close)
         
     Returns :
         df : Pandas DataFrame with new columns added for 
@@ -290,24 +322,24 @@ def MACD(df, fastEMA=12, slowEMA=26, signal=9, base='Close'):
     
     return df
 
-def BBand(df, base='Close', period=20, multiplier=2):
+def BBand(df, base='close', period=20, multiplier=2):
     """
     Function to compute Bollinger Band (BBand)
     
     Args :
         df : Pandas DataFrame which contains ['date', 'open', 'high', 'low', 'close', 'volume'] columns
-        base : String indicating the column name from which the MACD needs to be computed from (Default Close)
+        base : String indicating the column name from which the MACD needs to be computed from (Default close)
         period : Integer indicates the period of computation in terms of number of candles
         multiplier : Integer indicates value to multiply the SD
         
     Returns :
         df : Pandas DataFrame with new columns added for 
             Upper Band (UpperBB_$period_$multiplier)
-            Lower Band (LowerBB_$period_$multiplier)
+            lower Band (lowerBB_$period_$multiplier)
     """
     
     upper = 'UpperBB_' + str(period) + '_' + str(multiplier)
-    lower = 'LowerBB_' + str(period) + '_' + str(multiplier)
+    lower = 'lowerBB_' + str(period) + '_' + str(multiplier)
     
     sma = df[base].rolling(window=period, min_periods=period - 1).mean()
     sd = df[base].rolling(window=period).std()
@@ -319,41 +351,72 @@ def BBand(df, base='Close', period=20, multiplier=2):
     
     return df
 
-def RSI(df, base="Close", period=21):
-    """
-    Function to compute Relative Strength Index (RSI)
-    
-    Args :
-        df : Pandas DataFrame which contains ['date', 'open', 'high', 'low', 'close', 'volume'] columns
-        base : String indicating the column name from which the MACD needs to be computed from (Default Close)
-        period : Integer indicates the period of computation in terms of number of candles
-        
-    Returns :
-        df : Pandas DataFrame with new columns added for 
-            Relative Strength Index (RSI_$period)
-    """
- 
-    delta = df[base].diff()
-    up, down = delta.copy(), delta.copy()
+# def RSI(df,period, base="close"):
+#     """
+#     Function to compute Relative Strength Index (RSI)
+#
+#     Args :
+#         df : Pandas DataFrame which contains ['date', 'open', 'high', 'low', 'close', 'volume'] columns
+#         base : String indicating the column name from which the MACD needs to be computed from (Default close)
+#         period : Integer indicates the period of computation in terms of number of candles
+#
+#     Returns :
+#         df : Pandas DataFrame with new columns added for
+#             Relative Strength Index (RSI_$period)
+#     """
+#
+#     delta = df[base].diff()
+#     up, down = delta.copy(), delta.copy()
+#     if len(delta)>(period-1):
+#         letmesee=len(delta)
+#         print(letmesee)
+#         up[up < 0] = 0
+#         down[down > 0] = 0
+#
+#         rUp = up.ewm(com=period - 1,  adjust=False).mean()
+#         rDown = down.ewm(com=period - 1, adjust=False).mean().abs()
+#
+#         df['RSI_' + str(period)] = 100 - 100 / (1 + rUp / rDown)
+#         df['RSI_' + str(period)].fillna(0, inplace=True)
+#     else:
+#         letmesee = len(delta)
+#         df['RSI_' + str(period)] = pd.Series()
+#         df['RSI_' + str(period)].fillna(0, inplace=True)
+#
+#     return df
 
-    up[up < 0] = 0
-    down[down > 0] = 0
-    
-    rUp = up.ewm(com=period - 1,  adjust=False).mean()
-    rDown = down.ewm(com=period - 1, adjust=False).mean().abs()
+def RSI(df, period,base='close'):
 
-    df['RSI_' + str(period)] = 100 - 100 / (1 + rUp / rDown)
-    df['RSI_' + str(period)].fillna(0, inplace=True)
+ delta = df[base].diff().dropna()
+ if len(delta) > (period - 1):
 
-    return df
+     u = delta * 0
+     d = u.copy()
+     u[delta > 0] = delta[delta > 0]
+     d[delta < 0] = -delta[delta < 0]
+     u[u.index[period-1]] = np.mean( u[:period] ) #first value is sum of avg gains
+     u = u.drop(u.index[:(period-1)])
+     d[d.index[period-1]] = np.mean( d[:period] ) #first value is sum of avg losses
+     d = d.drop(d.index[:(period-1)])
+     rs = pd.stats.moments.ewma(u, com=period-1, adjust=False) / \
+     pd.stats.moments.ewma(d, com=period-1, adjust=False)
+     df['RSI_' + str(period)] =100 - 100 / (1 + rs)
+     df['RSI_' + str(period)].fillna(0, inplace=True)
+ else:
+ # letmesee = len(delta)
+     df['RSI_' + str(period)] = pd.Series()
+     df['RSI_' + str(period)].fillna(0, inplace=True)
 
-def Ichimoku(df, ohlc=['Open', 'High', 'Low', 'Close'], param=[9, 26, 52, 26]):
+ return df
+
+
+def Ichimoku(df, ohlc=['open', 'high', 'low', 'close'], param=[9, 26, 52, 26]):
     """
     Function to compute Ichimoku Cloud parameter (Ichimoku)
     
     Args :
         df : Pandas DataFrame which contains ['date', 'open', 'high', 'low', 'close', 'volume'] columns
-        ohlc: List defining OHLC Column names (default ['Open', 'High', 'Low', 'Close'])
+        ohlc: List defining OHLC Column names (default ['open', 'high', 'low', 'close'])
         param: Periods to be used in computation (default [tenkan_sen_period, kijun_sen_period, senkou_span_period, chikou_span_period] = [9, 26, 52, 26])
         
     Returns :
